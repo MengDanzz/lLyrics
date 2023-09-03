@@ -17,6 +17,7 @@ import threading
 import webbrowser
 import sys
 import unicodedata
+import urllib.parse
 
 from threading import Thread
 
@@ -472,7 +473,8 @@ class lLyrics(GObject.Object, Peas.Activatable):
         # get the song data
         self.artist = entry.get_string(RB.RhythmDBPropType.ARTIST)
         self.title = entry.get_string(RB.RhythmDBPropType.TITLE)
-
+        self.location=entry.get_string(RB.RhythmDBPropType.LOCATION)
+        print(self.location)
         print("search lyrics for " + self.artist + " - " + self.title)
 
         self.was_corrected = False
@@ -480,7 +482,7 @@ class lLyrics(GObject.Object, Peas.Activatable):
         (self.clean_artist, self.clean_title) = self.clean_song_data(self.artist, self.title)
         self.path = self.build_cache_path(self.clean_artist, self.clean_title)
 
-        self.scan_all_sources(self.clean_artist, self.clean_title, True)
+        self.scan_all_sources(self.clean_artist, self.clean_title, True, self.location)
 
     def clean_song_data(self, artist, title):
         # convert to lowercase
@@ -730,20 +732,32 @@ class lLyrics(GObject.Object, Peas.Activatable):
 
         Gdk.threads_add_idle(GLib.PRIORITY_DEFAULT_IDLE, self.show_lyrics, lyrics)
 
-    def scan_all_sources(self, artist, title, cache):
+    def scan_all_sources(self, artist, title, cache, location=""):
         if self.edit_event.is_set():
             Gdk.threads_add_idle(GLib.PRIORITY_DEFAULT_IDLE, self.set_displayed_text, _("searching lyrics..."))
 
-        newthread = Thread(target=self._scan_all_sources_thread, args=(artist, title, cache))
+        newthread = Thread(target=self._scan_all_sources_thread, args=(artist, title, cache, location))
         newthread.start()
 
-    def _scan_all_sources_thread(self, artist, title, cache):
+    def _scan_all_sources_thread(self, artist, title, cache, location=""):
         Gdk.threads_add_idle(GLib.PRIORITY_DEFAULT_IDLE, self.set_menu_sensitive, False)
 
         lyrics = ""
         if cache:
             lyrics = self.get_lyrics_from_cache(self.path)
 
+        # 从同名文件（扩展名.lrc）读取
+        if lyrics == "":
+            location = self.location
+            print("location: ", location)
+            if location.startswith("file://"):
+                audio_location = location[7:] # 去掉 file://
+                dir_name = os.path.dirname(audio_location)
+                file_name = os.path.splitext(os.path.basename(audio_location))[0]+".lrc"
+                lrc_location = d = urllib.parse.unquote(os.path.join(dir_name, file_name))
+                with open(lrc_location, 'r', encoding='utf-8') as f:
+                    lyrics = f.read()
+            
         if lyrics == "":
             i = 0
             while lyrics == "" and i in range(len(self.sources)):
@@ -769,7 +783,7 @@ class lLyrics(GObject.Object, Peas.Activatable):
                 (artist, title, corrected) = Util.get_lastfm_correction(artist, title)
                 if corrected:
                     (self.clean_artist, self.clean_title) = self.clean_song_data(artist, title)
-                    self._scan_all_sources_thread(self.clean_artist, self.clean_title, False)
+                    self._scan_all_sources_thread(self.clean_artist, self.clean_title, False, location)
                     return
 
             self.current_source = None
