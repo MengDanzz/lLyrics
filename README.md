@@ -1,3 +1,6 @@
+# What I extend from lLyrics
+Some music app, such as [lx-muisc](https://github.com/lyswhut/lx-music-desktop) will download lyrics file with same filename of `mp3` but a extend with `lrc`. So, this plugin add a lyric source which search on file location. For example, `a.lrc` will be the lyrics for `a.mp3`.
+
 lLyrics
 ===============
 
